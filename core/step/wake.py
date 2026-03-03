@@ -17,7 +17,7 @@ class WakeStep(BaseStep):
         super().__init__(config)
         self.cfg = config.wake
         self.blacklist = config.blacklist
-        self.interest = Interest(self.cfg._interest_words)
+        self.interest = Interest(self.cfg._interest_words, only_prefix_wake=self.cfg.only_prefix_wake)
         self.similarity = Similarity()
 
     async def handle(self, ctx: WakeContext) -> StepResult:
@@ -41,11 +41,24 @@ class WakeStep(BaseStep):
             # 引用唤醒
             if isinstance(seg, Reply) and str(seg.sender_id) == ctx.bid:
                 return StepResult(wake=True, msg="引用唤醒", prolong=True)
-        # 提及唤醒
-        if len(self.cfg.names) > 0 and ctx.plain:
-            for name in self.cfg.names:
-                if name in ctx.plain:
-                    return StepResult(wake=True, msg="提及唤醒", prolong=True)
+            # 提及唤醒 - 支持仅句首模式
+            if len(self.cfg.names) > 0 and ctx.plain:
+                msg_stripped = ctx.plain.strip()
+                for name in self.cfg.names:
+                    name = name.strip()
+                    if not name:
+                        continue
+                    if self.cfg.only_prefix_wake:
+                        # 仅句首
+                        if (msg_stripped.startswith(name) or
+                            msg_stripped.startswith(name + " ") or
+                            msg_stripped.startswith(name + ",") or
+                            msg_stripped.startswith(name + "，")):
+                            return StepResult(wake=True, msg="提及唤醒", prolong=True)
+                    else:
+                            # 原有任意位置
+                        if name in ctx.plain:
+                            return StepResult(wake=True, msg="提及唤醒", prolong=True)
         # 唤醒延长
         if (
             self.cfg.prolong > 0

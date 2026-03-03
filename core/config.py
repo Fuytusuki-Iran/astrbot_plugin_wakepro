@@ -124,6 +124,7 @@ class WakeConfig(ConfigNode):
     interest_words_str: list[str]
     interest: float
     prob: float
+    only_prefix_wake:bool
 
     def __init__(self, data: MutableMapping[str, Any]):
         super().__init__(data)

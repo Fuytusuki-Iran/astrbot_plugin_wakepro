@@ -6,8 +6,17 @@ import jieba
 
 class Interest:
     def __init__(
-        self, interest_words, cache_size=2048, min_msg_len=3, noise_pattern=r"^[\W_]+$"
+            self, interest_words, only_prefix_wake: bool = False, cache_size=2048, min_msg_len=3,
+            noise_pattern=r"^[\W_]+$"
     ):
+        """
+        interest_words: list[list[str]]
+        """
+        self.topics = [list(t) for t in interest_words]
+        self.only_prefix_wake = only_prefix_wake  # ← 新增这行
+        self.min_msg_len = min_msg_len
+        self.noise_re = re.compile(noise_pattern)
+        self._install_token_cache(cache_size)
         """
         interest_words: list[list[str]]
         """
@@ -15,6 +24,7 @@ class Interest:
         self.min_msg_len = min_msg_len
         self.noise_re = re.compile(noise_pattern)
         self._install_token_cache(cache_size)
+        self.only_prefix = True
 
     # --------------------------------------
     # Tokenizer + LRU Cache
@@ -61,6 +71,27 @@ class Interest:
         if self._is_noise(msg):
             return 0.0
 
+        msg_stripped = msg.strip()
+
+        # ==================== 仅句首唤醒模式 ====================
+        if self.only_prefix_wake:
+            for topic in self.topics:
+                for kw in topic:
+                    kw = kw.strip()
+                    if not kw:
+                        continue
+                    # 支持 “关键词 ”、“关键词,”、“关键词，”、“关键词！”
+                    if (msg_stripped.startswith(kw) or
+                            msg_stripped.startswith(kw + " ") or
+                            msg_stripped.startswith(kw + ",") or
+                            msg_stripped.startswith(kw + "，") or
+                            msg_stripped.startswith(kw + "!") or
+                            msg_stripped.startswith(kw + "！")):
+                        return 1.0
+            return 0.0  # 不是句首 → 完全不唤醒
+        # ====================================================
+
+        # 原有任意位置智能匹配
         tokens = self.tokenize(msg)
         best = 0.0
 
